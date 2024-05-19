@@ -17,6 +17,14 @@ type texture {
     i32 format
 }
 
+type image {
+    void@ data,
+    i32 width,
+    i32 height,
+    i32 mipmaps,
+    i32 format
+}
+
 type rect {
     float x,
     float y,
@@ -45,6 +53,9 @@ cfn ClearBackground(color c)
 cfn SetTargetFPS(int fps)
 
 cfn LoadTexture(byte[] path) texture
+cfn LoadTextureFromImage(image img) texture
+cfn LoadImageFromMemory(byte[] fmt, byte[] data, int size) image
+
 cfn LoadImage(byte[] path) i32
 cfn DrawTextureRec(texture t, rect r, vec2 pos, color c)
 cfn DrawTexturePro(texture t, rect sr, rect dr, vec2 pos, float rot, color c)
@@ -62,6 +73,45 @@ cfn srand(int)
 cfn rand() int
 cfn tofloat(int) float
 
+embed "assets/v2/opened.png" as img_opened
+embed "assets/v2/1.png" as img_1
+embed "assets/v2/2.png" as img_2
+embed "assets/v2/3.png" as img_3
+embed "assets/v2/4.png" as img_4
+embed "assets/v2/5.png" as img_5
+embed "assets/v2/6.png" as img_6
+embed "assets/v2/7.png" as img_7
+embed "assets/v2/8.png" as img_8
+
+embed "assets/v2/closed.png" as img_closed
+embed "assets/v2/mine.png" as img_mine
+embed "assets/v2/flag.png" as img_flag
+embed "assets/v2/lost.png" as img_lost
+embed "assets/v2/correct.png" as img_correct
+embed "assets/v2/wrong.png" as img_wrong
+
+embed "assets/v2/d_.png" as img_d_
+embed "assets/v2/d0.png" as img_d0
+embed "assets/v2/d1.png" as img_d1
+embed "assets/v2/d2.png" as img_d2
+embed "assets/v2/d3.png" as img_d3
+embed "assets/v2/d4.png" as img_d4
+embed "assets/v2/d5.png" as img_d5
+embed "assets/v2/d6.png" as img_d6
+embed "assets/v2/d7.png" as img_d7
+embed "assets/v2/d8.png" as img_d8
+embed "assets/v2/d9.png" as img_d9
+
+embed "assets/v2/faces/front.png" as img_face_front
+
+
+fn loadTexture(byte[] imageData) texture {
+    let image img = LoadImageFromMemory(".png", imageData, imageData.len)
+    let texture t = LoadTextureFromImage(img)
+    # Unload img?
+    ret t
+}
+
 fn main() {
     let int gxOff = 30
     let int gyOff = 200
@@ -74,47 +124,48 @@ fn main() {
 
     let color bg = color!{ 215, 215, 215, 255 }
 
-    let texture texClosed = LoadTexture("assets/v2/closed.png")
-    let texture texMine = LoadTexture("assets/v2/mine.png")
-    let texture texFlag = LoadTexture("assets/v2/flag.png")
-    let texture texMineExplode = LoadTexture("assets/v2/lost.png")
-    let texture texFlaggedMine = LoadTexture("assets/v2/correct.png")
-    let texture texIncorrectFlag = LoadTexture("assets/v2/wrong.png")
+    let texture texClosed = loadTexture(img_closed)
+    let texture texMine = loadTexture(img_mine)
+    let texture texFlag = loadTexture(img_flag)
+    let texture texMineExplode = loadTexture(img_lost)
+    let texture texFlaggedMine = loadTexture(img_correct)
+    let texture texIncorrectFlag = loadTexture(img_wrong)
 
-    let texture texOpened = LoadTexture("assets/v2/opened.png")
-    let texture _1 = LoadTexture("assets/v2/1.png")
-    let texture _2 = LoadTexture("assets/v2/2.png")
-    let texture _3 = LoadTexture("assets/v2/3.png")
-    let texture _4 = LoadTexture("assets/v2/4.png")
-    let texture _5 = LoadTexture("assets/v2/5.png")
-    let texture _6 = LoadTexture("assets/v2/6.png")
-    let texture _7 = LoadTexture("assets/v2/7.png")
-    let texture _8 = LoadTexture("assets/v2/8.png")
+
+    let rect tileSize = rect!{0,0,680,680}
+    let texture texOpened = loadTexture(img_opened)
+    let texture _1 = loadTexture(img_1)
+    let texture _2 = loadTexture(img_2)
+    let texture _3 = loadTexture(img_3)
+    let texture _4 = loadTexture(img_4)
+    let texture _5 = loadTexture(img_5)
+    let texture _6 = loadTexture(img_6)
+    let texture _7 = loadTexture(img_7)
+    let texture _8 = loadTexture(img_8)
     let texture[] numbers = [ texOpened, _1, _2, _3, _4, _5, _6, _7, _8 ]
 
     let texture display1 = LoadTexture("assets/v2/display1.png")
 
-    let texture d0 = LoadTexture("assets/v2/d0.png")
-    let texture d1 = LoadTexture("assets/v2/d1.png")
-    let texture d2 = LoadTexture("assets/v2/d2.png")
-    let texture d3 = LoadTexture("assets/v2/d3.png")
-    let texture d4 = LoadTexture("assets/v2/d4.png")
-    let texture d5 = LoadTexture("assets/v2/d5.png")
-    let texture d6 = LoadTexture("assets/v2/d6.png")
-    let texture d7 = LoadTexture("assets/v2/d7.png")
-    let texture d8 = LoadTexture("assets/v2/d8.png")
-    let texture d9 = LoadTexture("assets/v2/d9.png")
+    let rect digitTileSize = rect!{0,0,350,520}
+    let texture d_ = loadTexture(img_d_)
+    let texture d0 = loadTexture(img_d0)
+    let texture d1 = loadTexture(img_d1)
+    let texture d2 = loadTexture(img_d2)
+    let texture d3 = loadTexture(img_d3)
+    let texture d4 = loadTexture(img_d4)
+    let texture d5 = loadTexture(img_d5)
+    let texture d6 = loadTexture(img_d6)
+    let texture d7 = loadTexture(img_d7)
+    let texture d8 = loadTexture(img_d8)
+    let texture d9 = loadTexture(img_d9)
 
-    let texture faceFront = LoadTexture("assets/v2/faces/front.png")
+    let texture faceFront = loadTexture(img_face_front)
 
     let bool isInitialized = false
     let bool acceptInput = true
     let bool gameEnded = false
 
     let int focus = 2
-    let rect tileSize = rect!{0,0,680,680}
-
-    let rect digitTileSize = rect!{0,0,350,520}
 
     let color tint = color!{255,255,255,255}
 
