@@ -57,6 +57,7 @@ cfn LoadTextureFromImage(image img) texture
 cfn LoadImageFromMemory(byte[] fmt, byte[] data, int size) image
 
 cfn LoadImage(byte[] path) i32
+cfn UnloadImage(image img)
 cfn DrawTextureRec(texture t, rect r, vec2 pos, color c)
 cfn DrawTexturePro(texture t, rect sr, rect dr, vec2 pos, float rot, color c)
 cfn GetWorkingDirectory() void@
@@ -64,6 +65,7 @@ cfn InitAudioDevice()
 
 cfn GetMouseX() int
 cfn GetMouseY() int
+cfn GetFrameTime() float
 cfn CheckCollisionRecs(rect a, rect b) bool
 cfn IsMouseButtonPressed(int button) bool
 
@@ -71,7 +73,7 @@ cfn printf(byte[] fmt, *) i32
 cfn time(int) int
 cfn srand(int)
 cfn rand() int
-cfn tofloat(int) float
+cfn free(void@)
 
 embed "assets/v2/opened.png" as img_opened
 embed "assets/v2/1.png" as img_1
@@ -101,159 +103,349 @@ embed "assets/v2/d6.png" as img_d6
 embed "assets/v2/d7.png" as img_d7
 embed "assets/v2/d8.png" as img_d8
 embed "assets/v2/d9.png" as img_d9
+embed "assets/v2/d-.png" as img_dm
+
+embed "assets/v2/dcoff.png" as img_dcoff
+embed "assets/v2/dcon.png" as img_dcon
 
 embed "assets/v2/faces/front.png" as img_face_front
+embed "assets/v2/faces/win.png" as img_face_win
+embed "assets/v2/faces/loss.png" as img_face_loss
 
+embed "assets/v2/display1.png" as img_display1
 
 fn loadTexture(byte[] imageData) texture {
     let image img = LoadImageFromMemory(".png", imageData, imageData.len)
     let texture t = LoadTextureFromImage(img)
-    # Unload img?
+    call UnloadImage(img)
     ret t
 }
 
+fn expandRect(rect@ r, float factor) {
+    mut r@.x = r@.x - factor
+    mut r@.y = r@.y - factor
+    mut r@.width = r@.width + factor*2
+    mut r@.height = r@.height + factor*2
+}
+
+fn restartGame(cell[][]@ grid, int gxOff, int gyOff, int cellSize, int gridWidth, int gridHeight, bool@ init, bool@ end, bool@ won, bool@ lost, float@ gtime) {
+
+    for i from 0 until grid@.len {
+        call free(grid@[i].ptr)
+    } call free(grid@.ptr)
+
+    mut gtime@ = 0
+    mut init@ = false
+    mut end@ = false
+    mut lost@ = false
+    mut won@ = false
+    call SetWindowSize(gxOff*2 + cellSize*gridWidth, gyOff+gxOff+cellSize*gridHeight)
+
+    mut grid@ = &*gridWidth
+    for i from 0 until grid@.len {
+        mut grid@[i] = &*gridHeight
+        for j from 0 until grid@[i].len {
+            mut grid@[i][j] = cell!{0,true,false,false}
+        }
+    }
+}
+
 fn main() {
+    call srand(time(0))
+
     let int gxOff = 30
-    let int gyOff = 200
-    let int cellSize = 50
+    let int gyOff = 150
+    let int cellSize = 45
 
-    let int gridWidth = 30
-    let int gridHeight = 16
+    let int gridWidth = 13
+    let int gridHeight = 13
+    let int mineCount = 20
 
-    call InitWindow(gxOff*2 + cellSize*gridWidth, 900, "Minesweeper")
+    let float gameTime = 0
+
+    call InitWindow(gxOff*2 + cellSize*gridWidth, gyOff+gxOff+cellSize*gridHeight, "Minesweeper")
+    call SetTargetFPS(60)
 
     let color bg = color!{ 215, 215, 215, 255 }
 
-    let texture texClosed = loadTexture(img_closed)
-    let texture texMine = loadTexture(img_mine)
-    let texture texFlag = loadTexture(img_flag)
-    let texture texMineExplode = loadTexture(img_lost)
-    let texture texFlaggedMine = loadTexture(img_correct)
-    let texture texIncorrectFlag = loadTexture(img_wrong)
+# TEXTURES
+        let texture texClosed = loadTexture(img_closed)
+        let texture texMine = loadTexture(img_mine)
+        let texture texFlag = loadTexture(img_flag)
+        let texture texMineExplode = loadTexture(img_lost)
+        let texture texFlaggedMine = loadTexture(img_correct)
+        let texture texIncorrectFlag = loadTexture(img_wrong)
+
+        let rect tileSize = rect!{0,0,680,680}
+        let texture texOpened = loadTexture(img_opened)
+        let texture _1 = loadTexture(img_1)
+        let texture _2 = loadTexture(img_2)
+        let texture _3 = loadTexture(img_3)
+        let texture _4 = loadTexture(img_4)
+        let texture _5 = loadTexture(img_5)
+        let texture _6 = loadTexture(img_6)
+        let texture _7 = loadTexture(img_7)
+        let texture _8 = loadTexture(img_8)
+        let texture[] numbers = [ texOpened, _1, _2, _3, _4, _5, _6, _7, _8 ]
+
+        let rect display1rect = rect!{0,0,1200,650}
+        let texture display1 = loadTexture(img_display1)
+
+        let rect digitSize = rect!{0,0,350,520}
+        let texture d_ = loadTexture(img_d_)
+        let texture d0 = loadTexture(img_d0)
+        let texture d1 = loadTexture(img_d1)
+        let texture d2 = loadTexture(img_d2)
+        let texture d3 = loadTexture(img_d3)
+        let texture d4 = loadTexture(img_d4)
+        let texture d5 = loadTexture(img_d5)
+        let texture d6 = loadTexture(img_d6)
+        let texture d7 = loadTexture(img_d7)
+        let texture d8 = loadTexture(img_d8)
+        let texture d9 = loadTexture(img_d9)
+        let texture dm = loadTexture(img_dm)
+        let texture[] digits = [ d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d_, dm ]
+
+        let rect digitColonSize = rect!{0,0,100,520}
+        let texture dcoff = loadTexture(img_dcoff)
+        let texture dcon = loadTexture(img_dcon)
+
+        let rect faceSize = rect!{0,0,600,550}
+        let texture texFaceFront = loadTexture(img_face_front)
+        let texture texFaceLoss = loadTexture(img_face_loss)
+        let texture texFaceWin = loadTexture(img_face_win)
+# TEXTURES
 
 
-    let rect tileSize = rect!{0,0,680,680}
-    let texture texOpened = loadTexture(img_opened)
-    let texture _1 = loadTexture(img_1)
-    let texture _2 = loadTexture(img_2)
-    let texture _3 = loadTexture(img_3)
-    let texture _4 = loadTexture(img_4)
-    let texture _5 = loadTexture(img_5)
-    let texture _6 = loadTexture(img_6)
-    let texture _7 = loadTexture(img_7)
-    let texture _8 = loadTexture(img_8)
-    let texture[] numbers = [ texOpened, _1, _2, _3, _4, _5, _6, _7, _8 ]
-
-    let texture display1 = LoadTexture("assets/v2/display1.png")
-
-    let rect digitTileSize = rect!{0,0,350,520}
-    let texture d_ = loadTexture(img_d_)
-    let texture d0 = loadTexture(img_d0)
-    let texture d1 = loadTexture(img_d1)
-    let texture d2 = loadTexture(img_d2)
-    let texture d3 = loadTexture(img_d3)
-    let texture d4 = loadTexture(img_d4)
-    let texture d5 = loadTexture(img_d5)
-    let texture d6 = loadTexture(img_d6)
-    let texture d7 = loadTexture(img_d7)
-    let texture d8 = loadTexture(img_d8)
-    let texture d9 = loadTexture(img_d9)
-
-    let texture faceFront = loadTexture(img_face_front)
 
     let bool isInitialized = false
     let bool acceptInput = true
+
     let bool gameEnded = false
+    let bool gameLost = false
+    let bool gameWon = false
 
     let int focus = 2
 
     let color tint = color!{255,255,255,255}
-
     let vec2 origin = vec2!{0,0}
 
 
-    call srand(time(0))
-
-    let cell[][] grid = *gridWidth
-    for i from 0 until grid.len && {
-        mut grid[i] = *gridHeight
-        for j from 0 until grid[i].len && {
-            mut grid[i][j] = cell!{0,true,false,false}
-        }
-    }
+    let cell[][] grid = *0
+    call restartGame(@grid, gxOff, gyOff, cellSize, gridWidth, gridHeight, @isInitialized, @gameEnded, @gameWon, @gameLost, @gameTime)
 
 
-    call SetTargetFPS(60)
+
+    let float animTimerBlink = 0
+    let bool animTimerBlinkState = false
+
 
     while !WindowShouldClose() {
+        mut acceptInput = !gameEnded
+
 
         call BeginDrawing()
 
-            call DrawTexturePro(display1, rect!{0,0,1200,650}, rect!{25,25,210,120}, origin, 0, tint)
 
-            call DrawTexturePro(d6, digitTileSize, rect!{50,50,40,70}, origin, 0, tint)
-            call DrawTexturePro(d9, digitTileSize, rect!{90,50,40,70}, origin, 0, tint)
-            call DrawTexturePro(d4, digitTileSize, rect!{130,50,40,70}, origin, 0, tint)
-            call DrawTexturePro(d2, digitTileSize, rect!{170,50,40,70}, origin, 0, tint)
+            # TODO: GetFrameTime() doesnt work for some reason
+            let float dt = 1/60
 
-            call DrawTexturePro(faceFront, rect!{0,0,600,550}, rect!{250,25,165,150}, origin, 0, tint)
+
+            if !gameEnded and isInitialized
+                mut gameTime = gameTime + dt
+
 
             call ClearBackground(bg)
 
-            let rect mouse = rect!{tofloat(GetMouseX()), tofloat(GetMouseY()), 0, 0}
+            let rect mouse = rect!{GetMouseX()->float, GetMouseY()->float, 0, 0}
             let bool click = IsMouseButtonPressed(0)
             let bool rclick = IsMouseButtonPressed(1)
 
+
+
+
+
+            # DRAW INTERFACE
+            if true && {
+                let float faceHeight = (gyOff - gxOff)->float
+                let float faceWidth = faceHeight * 1.1
+                let float faceX = ((gxOff*2 + cellSize*gridWidth)->float - faceWidth) / 2
+                let float faceY = (gyOff->float - faceHeight) / 2
+
+                let rect r = rect!{faceX,faceY,faceWidth,faceHeight}
+                let bool hover = CheckCollisionRecs(r, mouse)
+
+                if hover
+                    call expandRect(@r, focus->float)
+
+                if hover and click and isInitialized {
+                    call restartGame(@grid, gxOff, gyOff, cellSize, gridWidth, gridHeight, @isInitialized, @gameEnded, @gameLost, @gameWon, @gameTime)
+                    continue
+                }
+
+                let texture faceT = texFaceFront
+                if gameWon mut faceT = texFaceWin
+                if gameLost mut faceT = texFaceLoss
+
+                call DrawTexturePro(faceT, faceSize, r, origin, 0, tint)
+
+
+
+                let float maxDisplayHeight = (gyOff - gxOff)->float
+                let float displayCountWidth = faceX - gxOff->float*1.5
+                let float displayRatio = 0.4
+                let float displayCountHeight = displayCountWidth * displayRatio
+                if displayCountHeight > maxDisplayHeight {
+                    mut displayCountHeight = maxDisplayHeight
+                    mut displayCountWidth = displayCountHeight / displayRatio
+                }
+                let float displayCountY = (gyOff->float - displayCountHeight) / 2
+
+                let float digitHeight = displayCountHeight * 0.6
+                let float digitWidth = digitHeight / 520 * 350
+                let float digitY = displayCountY + ((displayCountHeight - digitHeight)/2)
+
+
+
+
+
+
+                let float mineCountX = gxOff->float
+                let rect mineCountRect = rect!{mineCountX,displayCountY,displayCountWidth,displayCountHeight}
+                call DrawTexturePro(display1, display1rect, mineCountRect, origin, 0, tint)
+
+                let int remainingMinesTrue = (mineCount - countFlags(grid))
+                let int remainingMines = mabs(remainingMinesTrue)
+                let int rmThou = remainingMines / 1000
+                let int rmHndr = (remainingMines % 1000) / 100
+                let int rmTens = (remainingMines % 100) / 10
+                let int rmOnes = (remainingMines % 10)
+
+                if remainingMinesTrue < 0 {
+                    if rmTens == 0 and rmHndr == 0 and rmThou == 0 mut rmTens = 10
+                    if rmHndr == 0 and rmThou == 0 mut rmHndr = 10
+                    if rmThou == 0 mut rmThou = 10
+
+                    if rmTens == 10 mut rmTens = 11
+                    else if rmHndr == 10 mut rmHndr = 11
+                    else mut rmThou = 11
+                }
+
+                let float digitGap = 7
+                let float mineCountDigitsWidth = digitWidth*4 + digitGap*3
+                let float mineCountDigitXOffset = mineCountX + (displayCountWidth - mineCountDigitsWidth)/2
+                call DrawTexturePro(digits[rmThou], digitSize, rect!{mineCountDigitXOffset + digitGap*0 + digitWidth*0,digitY,digitWidth,digitHeight},origin,0,tint)
+                call DrawTexturePro(digits[rmHndr], digitSize, rect!{mineCountDigitXOffset + digitGap*1 + digitWidth*1,digitY,digitWidth,digitHeight},origin,0,tint)
+                call DrawTexturePro(digits[rmTens], digitSize, rect!{mineCountDigitXOffset + digitGap*2 + digitWidth*2,digitY,digitWidth,digitHeight},origin,0,tint)
+                call DrawTexturePro(digits[rmOnes], digitSize, rect!{mineCountDigitXOffset + digitGap*3 + digitWidth*3,digitY,digitWidth,digitHeight},origin,0,tint)
+
+
+
+
+
+
+                let float timeCountX = (gxOff+gridWidth*cellSize)->float - displayCountWidth
+                let rect timeCountRect = rect!{timeCountX,displayCountY,displayCountWidth,displayCountHeight}
+                call DrawTexturePro(display1, display1rect, timeCountRect, origin, 0, tint)
+
+                let int intTime = (gameTime-0.5)->int
+                let int seconds = intTime %% 60
+                let int secondsOnes = seconds %% 10
+                let int secondsTens = seconds / 10
+                let int minutes = intTime / 60
+                let int minutesOnes = minutes %% 10
+                let int minutesTens = minutes / 10
+
+                let float timeDigitGap = 3
+                let float timeColonWidth = digitHeight/520*100
+                let float timeCountDigitsWidth = digitWidth*4 + timeColonWidth + timeDigitGap*4
+                let float timeCountDigitXOffset = timeCountX + (displayCountWidth - timeCountDigitsWidth)/2
+
+                let texture colonTexture = dcon
+
+                if gameWon {
+                    mut animTimerBlink = animTimerBlink - 1.2*dt
+                    if animTimerBlink < 0 {
+                        mut animTimerBlink = 1
+                        mut animTimerBlinkState = !animTimerBlinkState
+                    }
+
+                    if !animTimerBlinkState {
+                        mut colonTexture = dcoff
+                        mut secondsOnes = 10
+                        mut secondsTens = 10
+                        mut minutesOnes = 10
+                        mut minutesTens = 10
+                    }
+                }
+
+                call DrawTexturePro(digits[minutesTens], digitSize, rect!{timeCountDigitXOffset + timeDigitGap*0 + digitWidth*0,digitY,digitWidth,digitHeight},origin,0,tint)
+                call DrawTexturePro(digits[minutesOnes], digitSize, rect!{timeCountDigitXOffset + timeDigitGap*1 + digitWidth*1,digitY,digitWidth,digitHeight},origin,0,tint)
+
+                call DrawTexturePro(colonTexture, digitColonSize, rect!{timeCountDigitXOffset + timeDigitGap*2 + digitWidth*2,digitY,timeColonWidth,digitHeight},origin,0,tint)
+
+                call DrawTexturePro(digits[secondsTens], digitSize, rect!{timeCountDigitXOffset + timeDigitGap*3 + timeColonWidth + digitWidth*2,digitY,digitWidth,digitHeight},origin,0,tint)
+                call DrawTexturePro(digits[secondsOnes], digitSize, rect!{timeCountDigitXOffset + timeDigitGap*4 + timeColonWidth + digitWidth*3,digitY,digitWidth,digitHeight},origin,0,tint)
+            }
+
+
+
+
             for i from 0 until gridWidth {
                 for j from 0 until gridHeight {
-                    let rect r = rect!{tofloat(i*cellSize+gxOff), tofloat(j*cellSize+gyOff), tofloat(cellSize), tofloat(cellSize)}
+                    let rect r = rect!{(i*cellSize+gxOff)->float, (j*cellSize+gyOff)->float, cellSize->float, cellSize->float}
                     let cell@ mutcell = @grid[i][j]
                     let cell c = mutcell@
                     let bool hover = CheckCollisionRecs(r, mouse)
 
-                    if hover 
-                        mut r = rect!{tofloat(i*cellSize-focus+gxOff), tofloat(j*cellSize-focus+gyOff), tofloat(cellSize+focus*2), tofloat(cellSize+focus*2)}
+                    if hover
+                        call expandRect(@r, focus->float)
 
 if acceptInput {
-                    if hover if click if !isInitialized {
-                        call populateGrid(grid, i, j)
+                    if hover and click and !isInitialized {
+                        call populateGrid(grid, i, j, mineCount)
                         mut isInitialized = true
                     }
 
-                    if hover if click {
+                    if hover and click {
                         let bool result = true
 
-                        if !c.closed { mut result = tryChord(grid, i, j) }
-                        else if !c.flag { mut result = recursivelyOpen(grid, i, j) }
+                        if !c.closed 
+                            mut result = tryChord(grid, i, j)
+                        else if !c.flag 
+                            mut result = recursivelyOpen(grid, i, j)
 
-                        mut acceptInput = result
-                        mut gameEnded = !result
+                        mut gameLost = !result
+                        mut gameWon = !gameLost and checkWin(grid)
+                        if gameWon call flagAllMines(grid)
+
+                        mut gameEnded = gameLost or gameWon
+
+                        mut acceptInput = !gameEnded
                     }
 
-                    if hover if rclick { if c.closed mut mutcell@.flag = !c.flag }
+                    if hover and rclick and c.closed 
+                        mut grid[i][j].flag = !c.flag
 } #acceptInput
 
                     let texture t = texClosed
-                    if !c.closed { 
-                        if c.mine mut t = texMine
-                        else mut t = numbers[c.number]
-                    }
-                    else if c.closed if c.flag
+                    if !c.closed and c.mine 
+                        mut t = texMine
+                    else if !c.closed and !c.flag
+                        mut t = numbers[c.number]
+                    else if c.closed and c.flag
                         mut t = texFlag
 
                     if gameEnded {
-                        if c.mine { 
-                            if !c.closed { 
-                                mut t = texMineExplode 
-                            }
-                            else {
-                                if !c.flag mut t = texMine
-                                else mut t = texFlaggedMine
-                            }
-                        } 
-                        else if c.flag {
+                        if c.mine and !c.closed
+                            mut t = texMineExplode 
+
+                        else if c.mine and !c.flag 
+                            mut t = texMine
+                        else if c.mine and c.flag
+                            mut t = texFlaggedMine
+                        else if !c.mine and c.flag
                             mut t = texIncorrectFlag
-                        }
                     }
 
                     call DrawTexturePro(t, tileSize, r, origin, 0, tint)
@@ -267,18 +459,59 @@ if acceptInput {
 # abs is taken in clib i suppose, i definitely need to do the module system
 fn mabs(int i) int { if i > 0 ret i else ret -i ret 0 }
 
-fn populateGrid(cell[][] grid, int xo, int yo) {
+fn countFlags(cell[][] grid) int {
+    let int flagCount = 0
     for i from 0 until grid.len {
         for j from 0 until grid[i].len {
-            let int r = rand() %% 100
-            let bool isMine = r > 85
+            if grid[i][j].flag 
+                mut flagCount = flagCount + 1
+        }
+    }
+    ret flagCount
+}
 
-            let int dx = mabs(xo - i)
-            let int dy = mabs(yo - j)
+fn clearGrid(cell[][] grid) {
+    for i from 0 until grid.len && {
+        for j from 0 until grid[i].len && {
+            mut grid[i][j] = cell!{0,true,false,false}
+        }
+    }
+}
 
-            if dx + dy < 3 mut isMine = false
+fn checkWin(cell[][] grid) bool {
+    let int closed = 0
+    let int mines = 0
 
-            mut grid[i][j] = cell!{0,true,isMine,false}
+    for i from 0 until grid.len {
+        for j from 0 until grid[i].len {
+            if grid[i][j].closed mut closed = closed + 1
+            if grid[i][j].mine mut mines = mines + 1
+        }
+    }
+
+    ret closed == mines
+}
+
+fn flagAllMines(cell[][] grid) {
+    for i from 0 until grid.len
+        for j from 0 until grid[i].len
+            if grid[i][j].mine mut grid[i][j].flag = true
+}
+
+fn populateGrid(cell[][] grid, int xo, int yo, int targetMineCount) {
+    for _ from 0 until targetMineCount {
+        let bool stop = false
+        while !stop {
+            let int rx = rand() %% grid.len
+            let int ry = rand() %% grid[0].len
+
+            if grid[rx][ry].mine continue
+            let int dx = mabs(xo - rx)
+            let int dy = mabs(yo - ry)
+            if dx + dy < 3 continue
+
+            mut grid[rx][ry].mine = true
+            mut stop = true
         }
     }
 
@@ -288,14 +521,12 @@ fn populateGrid(cell[][] grid, int xo, int yo) {
 
             for in from -1 until 2 {
                 for jn from -1 until 2 {
-                    if in == 0 { if jn == 0 { continue } }
+                    if in == 0 and jn == 0 continue
                     let int id = i + in
                     let int jd = j + jn
 
-                    if id < 0 continue
-                    if id >= grid.len continue
-                    if jd < 0 continue
-                    if jd >= grid[i].len continue
+                    if id < 0 or id >= grid.len continue
+                    if jd < 0 or jd >= grid[i].len continue
 
                     if grid[id][jd].mine 
                         mut around = around + 1
@@ -316,11 +547,9 @@ fn tryChord(cell[][] grid, int x, int y) bool {
     let int flagged = 0
     for i from -1 until 2 {
         for j from -1 until 2 {
-            if i == 0 if j == 0 continue
-            if x + i < 0 continue
-            if y + j < 0 continue
-            if x + i >= grid.len continue
-            if y + j >= grid[0].len continue
+            if i == 0 and j == 0 continue
+            if x + i < 0 or x + i >= grid.len continue
+            if y + j < 0 or y + j >= grid[0].len continue
 
             if grid[x+i][y+j].flag
                 mut flagged = flagged + 1
@@ -332,11 +561,9 @@ fn tryChord(cell[][] grid, int x, int y) bool {
 
     for i from -1 until 2 {
         for j from -1 until 2 {
-            if i == 0 if j == 0 continue
-            if x + i < 0 continue
-            if y + j < 0 continue
-            if x + i >= grid.len continue
-            if y + j >= grid[0].len continue
+            if i == 0 and j == 0 continue
+            if x + i < 0 or x + i >= grid.len continue
+            if y + j < 0 or y + j >= grid[0].len continue
             if grid[x+i][y+j].flag continue
 
             let bool result = recursivelyOpen(grid, x+i, y+j)
@@ -349,10 +576,8 @@ fn tryChord(cell[][] grid, int x, int y) bool {
 
 # False if mine
 fn recursivelyOpen(cell[][] grid, int x, int y) bool {
-    if x >= grid.len ret true
-    if y >= grid[0].len ret true
-    if x < 0 ret true
-    if y < 0 ret true
+    if x < 0 or x >= grid.len ret true
+    if y < 0 or y >= grid[0].len ret true
 
     if !grid[x][y].closed ret true
 
