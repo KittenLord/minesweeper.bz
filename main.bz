@@ -108,9 +108,18 @@ embed "assets/v2/d-.png" as img_dm
 embed "assets/v2/dcoff.png" as img_dcoff
 embed "assets/v2/dcon.png" as img_dcon
 
-embed "assets/v2/faces/front.png" as img_face_front
 embed "assets/v2/faces/win.png" as img_face_win
 embed "assets/v2/faces/loss.png" as img_face_loss
+
+embed "assets/v2/faces/front.png" as img_face_front
+embed "assets/v2/faces/blink.png" as img_face_blink
+
+embed "assets/v2/faces/look_m.png" as img_face_look_m
+embed "assets/v2/faces/look_l.png" as img_face_look_l
+embed "assets/v2/faces/look_ll.png" as img_face_look_ll
+embed "assets/v2/faces/look_r.png" as img_face_look_r
+embed "assets/v2/faces/look_rr.png" as img_face_look_rr
+
 
 embed "assets/v2/display1.png" as img_display1
 
@@ -157,9 +166,9 @@ fn main() {
     let int gyOff = 150
     let int cellSize = 45
 
-    let int gridWidth = 13
-    let int gridHeight = 13
-    let int mineCount = 20
+    let int gridWidth = 11
+    let int gridHeight = 11
+    let int mineCount = 18
 
     let float gameTime = 0
 
@@ -211,9 +220,17 @@ fn main() {
         let texture dcon = loadTexture(img_dcon)
 
         let rect faceSize = rect!{0,0,600,550}
-        let texture texFaceFront = loadTexture(img_face_front)
         let texture texFaceLoss = loadTexture(img_face_loss)
         let texture texFaceWin = loadTexture(img_face_win)
+
+        let texture texFaceFront = loadTexture(img_face_front)
+        let texture texFaceBlink = loadTexture(img_face_blink)
+
+        let texture texFaceLookM = loadTexture(img_face_look_m)
+        let texture texFaceLookL = loadTexture(img_face_look_l)
+        let texture texFaceLookLL = loadTexture(img_face_look_ll)
+        let texture texFaceLookR = loadTexture(img_face_look_r)
+        let texture texFaceLookRR = loadTexture(img_face_look_rr)
 # TEXTURES
 
 
@@ -238,6 +255,13 @@ fn main() {
 
     let float animTimerBlink = 0
     let bool animTimerBlinkState = false
+
+    let int animFaceState = 0
+    let float animChangeStateTimer = 0
+    let int BLINK = 0
+    let int FOLLOW = 1
+    let bool animBlinkState = false
+    let float animBlink = 0
 
 
     while !WindowShouldClose() {
@@ -284,6 +308,66 @@ fn main() {
                 }
 
                 let texture faceT = texFaceFront
+                mut animChangeStateTimer = animChangeStateTimer - dt
+
+                if animChangeStateTimer < 0 {
+                    let int newState = rand() %% 2
+                    mut animChangeStateTimer = (rand() %% 6 + 3)->float
+                    mut animFaceState = newState
+                }
+
+
+                if animFaceState == BLINK {
+                    mut animBlink = animBlink - dt
+
+                    if animBlink < 0 {
+                        mut animBlinkState = !animBlinkState
+                        if animBlinkState {
+                            mut animBlink = (rand() %% 3 + 1)->float
+                        }
+                        else {
+                            mut animBlink = 0.2
+                        }
+                    }
+
+                    if animBlinkState
+                        mut faceT = texFaceFront
+                    else
+                        mut faceT = texFaceBlink
+                }
+                else if animFaceState == FOLLOW {
+                    let float faceX = faceX + faceWidth/2
+                    let float faceY = faceY + faceHeight/2
+
+                    let float mouseX = GetMouseX()->float - faceX
+                    let float mouseY = GetMouseY()->float - faceY
+
+                    let float hypo = sqrt((mouseX*mouseX + mouseY*mouseY)->double)->float
+
+                    let float ratio = mouseY / hypo
+
+                    
+                    let float middleThreshold = 0.95
+                    let float slightlyThreshold = 0.7
+
+
+                    if ratio > middleThreshold or ratio < 0-middleThreshold
+                        mut faceT = texFaceLookM
+                    else if ratio > slightlyThreshold or ratio < 0-slightlyThreshold {
+                        if mouseX < 0
+                            mut faceT = texFaceLookL
+                        else
+                            mut faceT = texFaceLookR
+                    }
+                    else {
+                        if mouseX < 0
+                            mut faceT = texFaceLookLL
+                        else
+                            mut faceT = texFaceLookRR
+                    }
+                }
+                
+
                 if gameWon mut faceT = texFaceWin
                 if gameLost mut faceT = texFaceLoss
 
@@ -458,6 +542,8 @@ if acceptInput {
 
 # abs is taken in clib i suppose, i definitely need to do the module system
 fn mabs(int i) int { if i > 0 ret i else ret -i ret 0 }
+
+cfn sqrt(double f) double
 
 fn countFlags(cell[][] grid) int {
     let int flagCount = 0
