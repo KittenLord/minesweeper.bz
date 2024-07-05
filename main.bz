@@ -73,7 +73,6 @@ cfn printf(byte[] fmt, *) i32
 cfn time(int) int
 cfn srand(int)
 cfn rand() int
-cfn free(void@)
 
 embed "assets/v2/opened.png" as img_opened
 embed "assets/v2/1.png" as img_1
@@ -140,8 +139,8 @@ fn expandRect(rect@ r, float factor) {
 fn restartGame(cell[][]@ grid, int gxOff, int gyOff, int cellSize, int gridWidth, int gridHeight, bool@ init, bool@ end, bool@ won, bool@ lost, float@ gtime) {
 
     for i from 0 until grid@.len {
-        free(grid@[i].ptr)
-    } free(grid@.ptr)
+        collect grid@[i]
+    } collect grid@
 
     mut gtime@ = 0
     mut init@ = false

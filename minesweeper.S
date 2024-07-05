@@ -591,6 +591,7 @@ mov rbx, [rsp+8]
 cmp rax, rbx
 je _forend@@@7
 call gcframe@@
+sub rsp, 0
 sub rsp, 16
 lea rsi, [rbp+16]
 lea rdi, [rsp]
@@ -629,13 +630,26 @@ sub rsp, 16
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
-mov r12, [rsp]
-call gcpush@@
+lea rsi, [rsp+0]
+sub rsp, 16
+lea rdi, [rsp]
+mov rcx, 8
+rep movsb
+lea rsi, [rsp]
+lea rdi, [rsp+16]
+mov rcx, 8
+rep movsb
 add rsp, 16
+mov rcx, [rsp+0]
+sub rsp, 32
+call free
+add rsp, 48
+add rsp, 0
 call gcclear@@
 jmp _forstep@@@8
 _forend@@@7:
 add rsp, 16
+sub rsp, 0
 sub rsp, 16
 lea rsi, [rbp+16]
 lea rdi, [rsp]
@@ -648,9 +662,21 @@ lea rsi, [rax]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
-mov r12, [rsp]
-call gcpush@@
+lea rsi, [rsp+0]
+sub rsp, 16
+lea rdi, [rsp]
+mov rcx, 8
+rep movsb
+lea rsi, [rsp]
+lea rdi, [rsp+16]
+mov rcx, 8
+rep movsb
 add rsp, 16
+mov rcx, [rsp+0]
+sub rsp, 32
+call free
+add rsp, 48
+add rsp, 0
 mov rax, __?float32?__(0.0)
 push 0
 push rax
