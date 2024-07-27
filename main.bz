@@ -45,6 +45,7 @@ type cell {
 }
 
 cfn InitWindow(int w, int h, byte[] title)
+cfn CloseWindow()
 cfn SetWindowSize(int w, int h)
 cfn WindowShouldClose() bool
 cfn BeginDrawing()
@@ -537,12 +538,18 @@ if acceptInput {
 
         EndDrawing()
     }
+
+    CloseWindow()
+
+    # There is probably some memory leak (not sure), but it takes 2 seconds to close without the exit()
+    exit(0) 
 }
 
-# abs is taken in clib i suppose, i definitely need to do the module system
+# "abs" is taken in clib I suppose, I definitely need to do the module system
 fn mabs(int i) int { if i > 0 ret i else ret -i ret 0 }
 
 cfn sqrt(double f) double
+cfn exit(int)
 
 fn countFlags(cell[][] grid) int {
     let int flagCount = 0
