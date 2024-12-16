@@ -1,6 +1,5 @@
 link "raylib"
-link "gdi32"
-link "winmm"
+link "m"
 
 type color {
     byte r,
@@ -176,7 +175,6 @@ fn main() {
     SetTargetFPS(60)
 
     let color bg = color!{ 215, 215, 215, 255 }
-
 
 # TEXTURES
         let texture texClosed = loadTexture(img_closed)

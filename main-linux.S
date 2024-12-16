@@ -4,8 +4,7 @@ extern realloc
 extern calloc
 extern free
 extern printf
-extern ExitProcess
-extern signal
+extern sigaction
 extern InitWindow
 extern CloseWindow
 extern SetWindowSize
@@ -126,36 +125,31 @@ global main
 main:
 and rsp, -32
 mov rbp, rsp
-sub rsp, 32
-mov rcx, 32
-call malloc
+mov rdi, 32
+call malloc WRT ..plt
 mov [rel gcptr@@], rax
-mov rcx, 11
-mov rdx, handler@@sigsegv
-call signal
+mov rdi, 11
+mov rsi, handler@@sigsegv
+mov rdx, 0
+call sigaction WRT ..plt
 sub rsp, 32
 mov QWORD [rsp], 0
 mov QWORD [rsp+8], 0
  mov QWORD [rsp+16], 0
 mov QWORD [rsp+24], 0
 call main@@
-mov rcx, [rsp]
-call ExitProcess
 mov rbx, [rsp]
 mov rax, 1
 int 80h
 error@@:
 push rbp
-sub rsp, 32
-call printf
-mov rcx, -1
-call ExitProcess
+call printf WRT ..plt
 mov rbx, 1
 mov rax, 0
 int 80h
 handler@@sigsegv:
 push rbp
-mov rcx, error@@SEGFAULT
+mov rdi, error@@SEGFAULT
 call error@@
 gccheck@@:
 push rbp
@@ -169,15 +163,13 @@ mov rax, [rel gccap@@]
 mov rbx, 2
 mul rbx
 mov [rel gccap@@], rax
-sub rsp, 32
-mov rcx, [rel gcptr@@]
+mov rdi, [rel gcptr@@]
 mov rax, [rel gccap@@]
 mov rbx, 8
 mul rax
-mov rdx, rax
-call realloc
+mov rsi, rax
+call realloc WRT ..plt
 mov [rel gcptr@@], rax
-add rsp, 32
 gccheckret@@:
 pop rbp
 ret
@@ -219,11 +211,8 @@ push rbp
 mov rbx, [rel gclen@@]
 mov r12, [rel gcptr@@]
 mov rdi, [r12 + rbx*8]
-mov rcx, rdi
 mov r12, rdi
-sub rsp, 32
-call free
-add rsp, 32
+call free WRT ..plt
 mov rax, [rel gclen@@]
 sub rax, 1
 mov [rel gclen@@], rax
@@ -248,6 +237,9 @@ mov rbp, rsp
 sub rsp, 48
 call gcframe@@
 sub rsp, 32
+; Call LoadImageFromMemory
+sub rsp, 0
+; Generate arg start rcx
 sub rsp, 16
 lea rsi, [rbp+16]
 lea rdi, [rsp]
@@ -263,21 +255,22 @@ lea rdi, [rsp+16]
 mov rcx, 8
 rep movsb
 add rsp, 16
+; Generate arg end
+; Generate arg start rdx
 sub rsp, 16
 lea rsi, [rbp+16]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
+; Generate arg end
+; Generate arg start rsi
 mov rdi, [rel STR_0@@LEN]
 mov rsi, 1
 mov rdx, 1
 push rdi
 push 0
 add rdi, 8
-mov rcx, rdi
-sub rsp, 32
-call calloc
-add rsp, 32
+call calloc WRT ..plt
 mov [rsp], rax
 mov r12, rax
 call gcpush@@
@@ -285,46 +278,62 @@ mov rdi, r12
 mov rsi, STR_0@@
 mov rcx, [rel STR_0@@LEN]
 rep movsb
-lea r14, [rsp+48]
-mov r9, [rsp+32]
-mov r8, [rsp+16]
-mov rdx, [rsp+0]
-mov rcx, r14
-sub rsp, 32
+; Generate arg end
+mov rcx, [rsp + 32]
+mov rdx, [rsp + 16]
+mov rsi, [rsp + 0]
+add rsp, 48
+lea rdi, [rsp + 0]
+mov rax, 0
 call LoadImageFromMemory
-add rsp, 80
+add rsp, 0
 lea rsi, [rsp]
 lea rdi, [rbp-24]
 mov rcx, 24
 rep movsb
 add rsp, 32
 sub rsp, 32
+; Call LoadTextureFromImage
+sub rsp, 8
+sub rsp, 24
 sub rsp, 32
 lea rsi, [rbp-24]
 lea rdi, [rsp]
 mov rcx, 24
 rep movsb
-lea r14, [rsp+32]
-lea rdx, [rsp+0]
-mov rcx, r14
-sub rsp, 32
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 24
+rep movsb
+add rsp, 32
+add rsp, 0
+lea rdi, [rsp + 32]
+mov rax, 0
 call LoadTextureFromImage
-add rsp, 64
+add rsp, 32
 lea rsi, [rsp]
 lea rdi, [rbp-44]
 mov rcx, 20
 rep movsb
 add rsp, 32
 sub rsp, 0
+; Call UnloadImage
+sub rsp, 8
+sub rsp, 24
 sub rsp, 32
 lea rsi, [rbp-24]
 lea rdi, [rsp]
 mov rcx, 24
 rep movsb
-lea rcx, [rsp+0]
-sub rsp, 32
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 24
+rep movsb
+add rsp, 32
+add rsp, 0
+mov rax, 0
 call UnloadImage
-add rsp, 64
+add rsp, 32
 add rsp, 0
 sub rsp, 32
 lea rsi, [rbp-44]
@@ -619,9 +628,9 @@ jge _OutOfBounds@@@10
 cmp rax, 0
 jge _InBounds@@@11
 _OutOfBounds@@@10:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@11:
 mov rcx, 16
@@ -700,6 +709,9 @@ mov rcx, 1
 rep movsb
 add rsp, 16
 sub rsp, 0
+; Call SetWindowSize
+sub rsp, 0
+; Generate arg start rsi
 sub rsp, 16
 lea rsi, [rbp+32]
 lea rdi, [rsp]
@@ -736,6 +748,8 @@ mov rbx, [rsp]
 add rsp, 16
 add rax, rbx
 mov [rsp], rax
+; Generate arg end
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp+24]
 lea rdi, [rsp]
@@ -771,11 +785,13 @@ mov rbx, [rsp]
 add rsp, 16
 add rax, rbx
 mov [rsp], rax
-mov rdx, [rsp+16]
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rsi, [rsp + 16]
+mov rdi, [rsp + 0]
+add rsp, 32
+mov rax, 0
 call SetWindowSize
-add rsp, 64
+add rsp, 0
 add rsp, 0
 sub rsp, 16
 lea rsi, [rbp+48]
@@ -787,11 +803,9 @@ add rsp, 16
 sub rsp, 16
 mov QWORD [rsp+8], rax
 add rax, 8
-mov rcx, rax
-mov rdx, 16
-sub rsp, 32
-call calloc
-add rsp, 32
+mov rdi, rax
+mov rsi, 16
+call calloc WRT ..plt
 mov [rsp], rax
 mov r12, rax
 call gcpush@@
@@ -862,11 +876,9 @@ add rsp, 16
 sub rsp, 16
 mov QWORD [rsp+8], rax
 add rax, 8
-mov rcx, rax
-mov rdx, 16
-sub rsp, 32
-call calloc
-add rsp, 32
+mov rdi, rax
+mov rsi, 16
+call calloc WRT ..plt
 mov [rsp], rax
 mov r12, rax
 call gcpush@@
@@ -922,9 +934,9 @@ jge _OutOfBounds@@@26
 cmp rax, 0
 jge _InBounds@@@27
 _OutOfBounds@@@26:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@27:
 mov rcx, 16
@@ -1051,19 +1063,29 @@ mov rbp, rsp
 sub rsp, 1488
 call gcframe@@
 sub rsp, 0
+; Call srand
+sub rsp, 0
+; Generate arg start rdi
 sub rsp, 16
+; Call time
+sub rsp, 0
+; Generate arg start rdi
 mov rax, 0
 push 0
 push rax
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call time
-add rsp, 48
-mov [rsp], rax
-mov rcx, [rsp+0]
-sub rsp, 32
+add rsp, 0
+mov [rsp + 0], rax
+; Generate arg end
+mov rdi, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call srand
-add rsp, 48
+add rsp, 0
 add rsp, 0
 mov rax, 30
 push 0
@@ -1122,16 +1144,16 @@ mov rcx, 4
 rep movsb
 add rsp, 16
 sub rsp, 0
+; Call InitWindow
+sub rsp, 0
+; Generate arg start rdx
 mov rdi, [rel STR_1@@LEN]
 mov rsi, 1
 mov rdx, 1
 push rdi
 push 0
 add rdi, 8
-mov rcx, rdi
-sub rsp, 32
-call calloc
-add rsp, 32
+call calloc WRT ..plt
 mov [rsp], rax
 mov r12, rax
 call gcpush@@
@@ -1139,6 +1161,8 @@ mov rdi, r12
 mov rsi, STR_1@@
 mov rcx, [rel STR_1@@LEN]
 rep movsb
+; Generate arg end
+; Generate arg start rsi
 sub rsp, 16
 lea rsi, [rbp-16]
 lea rdi, [rsp]
@@ -1175,6 +1199,8 @@ mov rbx, [rsp]
 add rsp, 16
 add rax, rbx
 mov [rsp], rax
+; Generate arg end
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-8]
 lea rdi, [rsp]
@@ -1210,21 +1236,28 @@ mov rbx, [rsp]
 add rsp, 16
 add rax, rbx
 mov [rsp], rax
-mov r8, [rsp+32]
-mov rdx, [rsp+16]
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rdx, [rsp + 32]
+mov rsi, [rsp + 16]
+mov rdi, [rsp + 0]
+add rsp, 48
+mov rax, 0
 call InitWindow
-add rsp, 80
+add rsp, 0
 add rsp, 0
 sub rsp, 0
+; Call SetTargetFPS
+sub rsp, 0
+; Generate arg start rdi
 mov rax, 60
 push 0
 push rax
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call SetTargetFPS
-add rsp, 48
+add rsp, 0
 add rsp, 0
 mov rax, 215
 push 0
@@ -1591,11 +1624,9 @@ rep movsb
 add rsp, 32
 sub rsp, 16
 mov QWORD [rsp+8], 9
-mov rcx, 10
-mov rdx, 20
-sub rsp, 32
-call calloc
-add rsp, 32
+mov rdi, 10
+mov rsi, 20
+call calloc WRT ..plt
 mov [rsp], rax
 mov r12, rax
 call gcpush@@
@@ -2030,11 +2061,9 @@ rep movsb
 add rsp, 32
 sub rsp, 16
 mov QWORD [rsp+8], 12
-mov rcx, 13
-mov rdx, 20
-sub rsp, 32
-call calloc
-add rsp, 32
+mov rdi, 13
+mov rsi, 20
+call calloc WRT ..plt
 mov [rsp], rax
 mov r12, rax
 call gcpush@@
@@ -2577,11 +2606,9 @@ add rsp, 16
 sub rsp, 16
 mov QWORD [rsp+8], rax
 add rax, 8
-mov rcx, rax
-mov rdx, 16
-sub rsp, 32
-call calloc
-add rsp, 32
+mov rdi, rax
+mov rsi, 16
+call calloc WRT ..plt
 mov [rsp], rax
 mov r12, rax
 call gcpush@@
@@ -2758,10 +2785,13 @@ add rsp, 16
 _whiledo@@@35:
 _whilecondition@@@36:
 sub rsp, 16
-sub rsp, 32
+; Call WindowShouldClose
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call WindowShouldClose
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 pop rax
 cmp al, 0
 push 1
@@ -2793,9 +2823,12 @@ mov rcx, 1
 rep movsb
 add rsp, 16
 sub rsp, 0
-sub rsp, 32
+; Call BeginDrawing
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call BeginDrawing
-add rsp, 32
+add rsp, 0
 add rsp, 0
 mov rax, __?float32?__(1.0)
 push 0
@@ -2871,28 +2904,39 @@ jmp _endif@@@40
 _else@@@41:
 _endif@@@40:
 sub rsp, 0
+; Call ClearBackground
+sub rsp, 0
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-56]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call ClearBackground
-add rsp, 48
+add rsp, 0
 add rsp, 0
 sub rsp, 16
-sub rsp, 32
+; Call GetMouseX
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call GetMouseX
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 cvtsi2ss xmm0, [rsp]
 movq [rsp], xmm0
 sub rsp, 16
-sub rsp, 32
+; Call GetMouseY
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call GetMouseY
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 cvtsi2ss xmm0, [rsp]
 movq [rsp], xmm0
 mov rax, __?float32?__(0.0)
@@ -2929,28 +2973,38 @@ mov rcx, 16
 rep movsb
 add rsp, 16
 sub rsp, 16
+; Call IsMouseButtonPressed
+sub rsp, 0
+; Generate arg start rdi
 mov rax, 0
 push 0
 push rax
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call IsMouseButtonPressed
-add rsp, 48
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 lea rsi, [rsp]
 lea rdi, [rbp-1077]
 mov rcx, 1
 rep movsb
 add rsp, 16
 sub rsp, 16
+; Call IsMouseButtonPressed
+sub rsp, 0
+; Generate arg start rdi
 mov rax, 1
 push 0
 push rax
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call IsMouseButtonPressed
-add rsp, 48
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 lea rsi, [rsp]
 lea rdi, [rbp-1078]
 mov rcx, 1
@@ -3151,22 +3205,31 @@ mov rcx, 16
 rep movsb
 add rsp, 16
 sub rsp, 16
+; Call CheckCollisionRecs
+sub rsp, 0
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1076]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-1112]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
-lea rdx, [rsp+16]
-lea rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 32
+mov rax, 0
 call CheckCollisionRecs
-add rsp, 64
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 lea rsi, [rsp]
 lea rdi, [rbp-1113]
 mov rcx, 1
@@ -3411,10 +3474,13 @@ cmp rax, 1
 jne _else@@@61
 call gcframe@@
 sub rsp, 16
-sub rsp, 32
+; Call rand
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call rand
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 mov rax, 2
 push 0
 push rax
@@ -3437,10 +3503,13 @@ mov rcx, 8
 rep movsb
 add rsp, 16
 sub rsp, 16
-sub rsp, 32
+; Call rand
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call rand
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 mov rax, 6
 push 0
 push rax
@@ -3590,10 +3659,13 @@ cmp rax, 1
 jne _else@@@75
 call gcframe@@
 sub rsp, 16
-sub rsp, 32
+; Call rand
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call rand
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 mov rax, 3
 push 0
 push rax
@@ -3778,10 +3850,13 @@ mov rcx, 4
 rep movsb
 add rsp, 16
 sub rsp, 16
-sub rsp, 32
+; Call GetMouseX
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call GetMouseX
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 cvtsi2ss xmm0, [rsp]
 movq [rsp], xmm0
 sub rsp, 16
@@ -3802,10 +3877,13 @@ mov rcx, 4
 rep movsb
 add rsp, 16
 sub rsp, 16
-sub rsp, 32
+; Call GetMouseY
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call GetMouseY
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 cvtsi2ss xmm0, [rsp]
 movq [rsp], xmm0
 sub rsp, 16
@@ -3826,6 +3904,9 @@ mov rcx, 4
 rep movsb
 add rsp, 16
 sub rsp, 16
+; Call sqrt
+sub rsp, 0
+; Generate arg start xmm0
 sub rsp, 16
 lea rsi, [rbp-1156]
 lea rdi, [rsp]
@@ -3869,12 +3950,13 @@ addss xmm0, xmm1
 movq [rsp], xmm0
 cvtss2sd xmm0, [rsp]
 movq [rsp], xmm0
-movq xmm0, [rsp+0]
-sub rsp, 32
+; Generate arg end
+movq xmm0, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call sqrt
-add rsp, 48
-movq rax, xmm0
-mov [rsp], rax
+add rsp, 0
+movq [rsp + 0], xmm0
 cvtsd2ss xmm0, [rsp]
 movq [rsp], xmm0
 lea rsi, [rsp]
@@ -4228,51 +4310,63 @@ jmp _endif@@@111
 _else@@@112:
 _endif@@@111:
 sub rsp, 0
-sub rsp, 16
-lea rsi, [rbp-980]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-sub rsp, 16
-lea rsi, [rbp-988]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1112]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-776]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 32
 lea rsi, [rbp-1136]
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
+rep movsb
+add rsp, 32
+; Generate arg start rdi
+sub rsp, 16
+lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-lea rsi, [rsp+88]
+; Generate arg end
+; Generate arg start xmm5
+mov rax, __?float32?__(0.0)
 push 0
+push rax
+; Generate arg end
+; Generate arg start xmm4
+sub rsp, 16
+lea rsi, [rbp-988]
 lea rdi, [rsp]
-mov rcx, 4
+mov rcx, 8
 rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
+; Generate arg end
+; Generate arg start xmm2, xmm3
+sub rsp, 16
+lea rsi, [rbp-1112]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+; Generate arg start xmm0, xmm1
+sub rsp, 16
+lea rsi, [rbp-776]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
 call DrawTexturePro
-add rsp, 160
+add rsp, 32
 add rsp, 0
 sub rsp, 16
 lea rsi, [rbp-16]
@@ -4612,51 +4706,63 @@ mov rcx, 16
 rep movsb
 add rsp, 16
 sub rsp, 0
-sub rsp, 16
-lea rsi, [rbp-980]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-sub rsp, 16
-lea rsi, [rbp-988]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1228]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-408]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 32
 lea rsi, [rbp-428]
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
+rep movsb
+add rsp, 32
+; Generate arg start rdi
+sub rsp, 16
+lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-lea rsi, [rsp+88]
+; Generate arg end
+; Generate arg start xmm5
+mov rax, __?float32?__(0.0)
 push 0
+push rax
+; Generate arg end
+; Generate arg start xmm4
+sub rsp, 16
+lea rsi, [rbp-988]
 lea rdi, [rsp]
-mov rcx, 4
+mov rcx, 8
 rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
+; Generate arg end
+; Generate arg start xmm2, xmm3
+sub rsp, 16
+lea rsi, [rbp-1228]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+; Generate arg start xmm0, xmm1
+sub rsp, 16
+lea rsi, [rbp-408]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
 call DrawTexturePro
-add rsp, 160
+add rsp, 32
 add rsp, 0
 sub rsp, 16
 lea rsi, [rbp-48]
@@ -5190,110 +5296,9 @@ mov rcx, 4
 rep movsb
 add rsp, 16
 sub rsp, 0
-sub rsp, 16
-lea rsi, [rbp-980]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-sub rsp, 16
-lea rsi, [rbp-988]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1292]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1284]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-mulss xmm0, xmm1
-movq [rsp], xmm0
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-addss xmm0, xmm1
-movq [rsp], xmm0
-sub rsp, 16
-lea rsi, [rbp-1204]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-mulss xmm0, xmm1
-movq [rsp], xmm0
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-addss xmm0, xmm1
-movq [rsp], xmm0
-sub rsp, 16
-lea rsi, [rbp-1208]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1204]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1200]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rdi, [rsp+0]
-lea rsi, [rsp+64]
-mov rcx, 4
-rep movsb
-lea rdi, [rsp+4]
-lea rsi, [rsp+48]
-mov rcx, 4
-rep movsb
-lea rdi, [rsp+8]
-lea rsi, [rsp+32]
-mov rcx, 4
-rep movsb
-lea rdi, [rsp+12]
-lea rsi, [rsp+16]
-mov rcx, 4
-rep movsb
-lea rsi, [rsp]
-lea rdi, [rsp+64]
-mov rcx, 16
-rep movsb
-add rsp, 64
-sub rsp, 16
-lea rsi, [rbp-444]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 16
 lea rsi, [rbp-704]
 lea rdi, [rsp]
@@ -5309,15 +5314,15 @@ add rsp, 8
 pop rbx
 pop rcx
 cmp rax, rcx
-jge _OutOfBounds@@@167
+jge _OutOfBounds@@@163
 cmp rax, 0
-jge _InBounds@@@168
-_OutOfBounds@@@167:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+jge _InBounds@@@164
+_OutOfBounds@@@163:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
-_InBounds@@@168:
+_InBounds@@@164:
 mov rcx, 20
 mul rcx
 lea rsi, [rax+rbx]
@@ -5325,38 +5330,31 @@ sub rsp, 32
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
 rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
-call DrawTexturePro
-add rsp, 160
-add rsp, 0
-sub rsp, 0
+add rsp, 32
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
+; Generate arg end
+; Generate arg start xmm5
 mov rax, __?float32?__(0.0)
 push 0
 push rax
+; Generate arg end
+; Generate arg start xmm4
 sub rsp, 16
 lea rsi, [rbp-988]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1292]
 lea rdi, [rsp]
@@ -5367,7 +5365,7 @@ lea rsi, [rbp-1284]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-mov rax, __?float32?__(1.0)
+mov rax, __?float32?__(0.0)
 push 0
 push rax
 mov rax, [rsp+16]
@@ -5389,7 +5387,7 @@ lea rsi, [rbp-1204]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-mov rax, __?float32?__(1.0)
+mov rax, __?float32?__(0.0)
 push 0
 push rax
 mov rax, [rsp+16]
@@ -5443,11 +5441,30 @@ lea rdi, [rsp+64]
 mov rcx, 16
 rep movsb
 add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-444]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
+call DrawTexturePro
+add rsp, 32
+add rsp, 0
+sub rsp, 0
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 16
 lea rsi, [rbp-704]
 lea rdi, [rsp]
@@ -5463,15 +5480,15 @@ add rsp, 8
 pop rbx
 pop rcx
 cmp rax, rcx
-jge _OutOfBounds@@@173
+jge _OutOfBounds@@@169
 cmp rax, 0
-jge _InBounds@@@174
-_OutOfBounds@@@173:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+jge _InBounds@@@170
+_OutOfBounds@@@169:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
-_InBounds@@@174:
+_InBounds@@@170:
 mov rcx, 20
 mul rcx
 lea rsi, [rax+rbx]
@@ -5479,38 +5496,31 @@ sub rsp, 32
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
 rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
-call DrawTexturePro
-add rsp, 160
-add rsp, 0
-sub rsp, 0
+add rsp, 32
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
+; Generate arg end
+; Generate arg start xmm5
 mov rax, __?float32?__(0.0)
 push 0
 push rax
+; Generate arg end
+; Generate arg start xmm4
 sub rsp, 16
 lea rsi, [rbp-988]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1292]
 lea rdi, [rsp]
@@ -5521,7 +5531,7 @@ lea rsi, [rbp-1284]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-mov rax, __?float32?__(2.0)
+mov rax, __?float32?__(1.0)
 push 0
 push rax
 mov rax, [rsp+16]
@@ -5543,7 +5553,7 @@ lea rsi, [rbp-1204]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-mov rax, __?float32?__(2.0)
+mov rax, __?float32?__(1.0)
 push 0
 push rax
 mov rax, [rsp+16]
@@ -5597,11 +5607,30 @@ lea rdi, [rsp+64]
 mov rcx, 16
 rep movsb
 add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-444]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
+call DrawTexturePro
+add rsp, 32
+add rsp, 0
+sub rsp, 0
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 16
 lea rsi, [rbp-704]
 lea rdi, [rsp]
@@ -5617,15 +5646,15 @@ add rsp, 8
 pop rbx
 pop rcx
 cmp rax, rcx
-jge _OutOfBounds@@@179
+jge _OutOfBounds@@@175
 cmp rax, 0
-jge _InBounds@@@180
-_OutOfBounds@@@179:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+jge _InBounds@@@176
+_OutOfBounds@@@175:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
-_InBounds@@@180:
+_InBounds@@@176:
 mov rcx, 20
 mul rcx
 lea rsi, [rax+rbx]
@@ -5633,38 +5662,197 @@ sub rsp, 32
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
 rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
-call DrawTexturePro
-add rsp, 160
-add rsp, 0
-sub rsp, 0
+add rsp, 32
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
+; Generate arg end
+; Generate arg start xmm5
 mov rax, __?float32?__(0.0)
 push 0
 push rax
+; Generate arg end
+; Generate arg start xmm4
 sub rsp, 16
 lea rsi, [rbp-988]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
+sub rsp, 16
+lea rsi, [rbp-1292]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1284]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+mov rax, __?float32?__(2.0)
+push 0
+push rax
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+mulss xmm0, xmm1
+movq [rsp], xmm0
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+addss xmm0, xmm1
+movq [rsp], xmm0
+sub rsp, 16
+lea rsi, [rbp-1204]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+mov rax, __?float32?__(2.0)
+push 0
+push rax
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+mulss xmm0, xmm1
+movq [rsp], xmm0
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+addss xmm0, xmm1
+movq [rsp], xmm0
+sub rsp, 16
+lea rsi, [rbp-1208]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1204]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1200]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rdi, [rsp+0]
+lea rsi, [rsp+64]
+mov rcx, 4
+rep movsb
+lea rdi, [rsp+4]
+lea rsi, [rsp+48]
+mov rcx, 4
+rep movsb
+lea rdi, [rsp+8]
+lea rsi, [rsp+32]
+mov rcx, 4
+rep movsb
+lea rdi, [rsp+12]
+lea rsi, [rsp+16]
+mov rcx, 4
+rep movsb
+lea rsi, [rsp]
+lea rdi, [rsp+64]
+mov rcx, 16
+rep movsb
+add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
+sub rsp, 16
+lea rsi, [rbp-444]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
+call DrawTexturePro
+add rsp, 32
+add rsp, 0
+sub rsp, 0
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
+sub rsp, 16
+lea rsi, [rbp-704]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1280]
+lea rdi, [rsp]
+mov rcx, 8
+rep movsb
+pop rax
+add rsp, 8
+pop rbx
+pop rcx
+cmp rax, rcx
+jge _OutOfBounds@@@181
+cmp rax, 0
+jge _InBounds@@@182
+_OutOfBounds@@@181:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
+call error@@
+_InBounds@@@182:
+mov rcx, 20
+mul rcx
+lea rsi, [rax+rbx]
+sub rsp, 32
+lea rdi, [rsp]
+mov rcx, 20
+rep movsb
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
+rep movsb
+add rsp, 32
+; Generate arg start rdi
+sub rsp, 16
+lea rsi, [rbp-980]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+; Generate arg end
+; Generate arg start xmm5
+mov rax, __?float32?__(0.0)
+push 0
+push rax
+; Generate arg end
+; Generate arg start xmm4
+sub rsp, 16
+lea rsi, [rbp-988]
+lea rdi, [rsp]
+mov rcx, 8
+rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1292]
 lea rdi, [rsp]
@@ -5751,59 +5939,25 @@ lea rdi, [rsp+64]
 mov rcx, 16
 rep movsb
 add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-444]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
-sub rsp, 16
-lea rsi, [rbp-704]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1280]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-pop rax
-add rsp, 8
-pop rbx
-pop rcx
-cmp rax, rcx
-jge _OutOfBounds@@@185
-cmp rax, 0
-jge _InBounds@@@186
-_OutOfBounds@@@185:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
-call error@@
-_InBounds@@@186:
-mov rcx, 20
-mul rcx
-lea rsi, [rax+rbx]
-sub rsp, 32
-lea rdi, [rsp]
-mov rcx, 20
-rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
 call DrawTexturePro
-add rsp, 160
+add rsp, 32
 add rsp, 0
 sub rsp, 16
 lea rsi, [rbp-8]
@@ -5898,51 +6052,63 @@ mov rcx, 16
 rep movsb
 add rsp, 16
 sub rsp, 0
-sub rsp, 16
-lea rsi, [rbp-980]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-sub rsp, 16
-lea rsi, [rbp-988]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1312]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-408]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 32
 lea rsi, [rbp-428]
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
+rep movsb
+add rsp, 32
+; Generate arg start rdi
+sub rsp, 16
+lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-lea rsi, [rsp+88]
+; Generate arg end
+; Generate arg start xmm5
+mov rax, __?float32?__(0.0)
 push 0
+push rax
+; Generate arg end
+; Generate arg start xmm4
+sub rsp, 16
+lea rsi, [rbp-988]
 lea rdi, [rsp]
-mov rcx, 4
+mov rcx, 8
 rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
+; Generate arg end
+; Generate arg start xmm2, xmm3
+sub rsp, 16
+lea rsi, [rbp-1312]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+; Generate arg start xmm0, xmm1
+sub rsp, 16
+lea rsi, [rbp-408]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
 call DrawTexturePro
-add rsp, 160
+add rsp, 32
 add rsp, 0
 sub rsp, 16
 lea rsi, [rbp-52]
@@ -6424,110 +6590,9 @@ jmp _endif@@@206
 _else@@@207:
 _endif@@@206:
 sub rsp, 0
-sub rsp, 16
-lea rsi, [rbp-980]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-sub rsp, 16
-lea rsi, [rbp-988]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1384]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1372]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-mulss xmm0, xmm1
-movq [rsp], xmm0
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-addss xmm0, xmm1
-movq [rsp], xmm0
-sub rsp, 16
-lea rsi, [rbp-1204]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-mulss xmm0, xmm1
-movq [rsp], xmm0
-mov rax, [rsp+16]
-mov rbx, [rsp]
-add rsp, 16
-movq xmm0, rax
-movq xmm1, rbx
-addss xmm0, xmm1
-movq [rsp], xmm0
-sub rsp, 16
-lea rsi, [rbp-1208]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1204]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1200]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-sub rsp, 16
-lea rdi, [rsp+0]
-lea rsi, [rsp+64]
-mov rcx, 4
-rep movsb
-lea rdi, [rsp+4]
-lea rsi, [rsp+48]
-mov rcx, 4
-rep movsb
-lea rdi, [rsp+8]
-lea rsi, [rsp+32]
-mov rcx, 4
-rep movsb
-lea rdi, [rsp+12]
-lea rsi, [rsp+16]
-mov rcx, 4
-rep movsb
-lea rsi, [rsp]
-lea rdi, [rsp+64]
-mov rcx, 16
-rep movsb
-add rsp, 64
-sub rsp, 16
-lea rsi, [rbp-444]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 16
 lea rsi, [rbp-704]
 lea rdi, [rsp]
@@ -6543,15 +6608,15 @@ add rsp, 8
 pop rbx
 pop rcx
 cmp rax, rcx
-jge _OutOfBounds@@@221
+jge _OutOfBounds@@@217
 cmp rax, 0
-jge _InBounds@@@222
-_OutOfBounds@@@221:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+jge _InBounds@@@218
+_OutOfBounds@@@217:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
-_InBounds@@@222:
+_InBounds@@@218:
 mov rcx, 20
 mul rcx
 lea rsi, [rax+rbx]
@@ -6559,38 +6624,197 @@ sub rsp, 32
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
 rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
-call DrawTexturePro
-add rsp, 160
-add rsp, 0
-sub rsp, 0
+add rsp, 32
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-980]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+; Generate arg end
+; Generate arg start xmm5
+mov rax, __?float32?__(0.0)
+push 0
+push rax
+; Generate arg end
+; Generate arg start xmm4
+sub rsp, 16
+lea rsi, [rbp-988]
+lea rdi, [rsp]
+mov rcx, 8
+rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
+sub rsp, 16
+lea rsi, [rbp-1384]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1372]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
 mov rax, __?float32?__(0.0)
 push 0
 push rax
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+mulss xmm0, xmm1
+movq [rsp], xmm0
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+addss xmm0, xmm1
+movq [rsp], xmm0
+sub rsp, 16
+lea rsi, [rbp-1204]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+mov rax, __?float32?__(0.0)
+push 0
+push rax
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+mulss xmm0, xmm1
+movq [rsp], xmm0
+mov rax, [rsp+16]
+mov rbx, [rsp]
+add rsp, 16
+movq xmm0, rax
+movq xmm1, rbx
+addss xmm0, xmm1
+movq [rsp], xmm0
+sub rsp, 16
+lea rsi, [rbp-1208]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1204]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1200]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+sub rsp, 16
+lea rdi, [rsp+0]
+lea rsi, [rsp+64]
+mov rcx, 4
+rep movsb
+lea rdi, [rsp+4]
+lea rsi, [rsp+48]
+mov rcx, 4
+rep movsb
+lea rdi, [rsp+8]
+lea rsi, [rsp+32]
+mov rcx, 4
+rep movsb
+lea rdi, [rsp+12]
+lea rsi, [rsp+16]
+mov rcx, 4
+rep movsb
+lea rsi, [rsp]
+lea rdi, [rsp+64]
+mov rcx, 16
+rep movsb
+add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
+sub rsp, 16
+lea rsi, [rbp-444]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
+call DrawTexturePro
+add rsp, 32
+add rsp, 0
+sub rsp, 0
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
+sub rsp, 16
+lea rsi, [rbp-704]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1360]
+lea rdi, [rsp]
+mov rcx, 8
+rep movsb
+pop rax
+add rsp, 8
+pop rbx
+pop rcx
+cmp rax, rcx
+jge _OutOfBounds@@@223
+cmp rax, 0
+jge _InBounds@@@224
+_OutOfBounds@@@223:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
+call error@@
+_InBounds@@@224:
+mov rcx, 20
+mul rcx
+lea rsi, [rax+rbx]
+sub rsp, 32
+lea rdi, [rsp]
+mov rcx, 20
+rep movsb
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
+rep movsb
+add rsp, 32
+; Generate arg start rdi
+sub rsp, 16
+lea rsi, [rbp-980]
+lea rdi, [rsp]
+mov rcx, 4
+rep movsb
+; Generate arg end
+; Generate arg start xmm5
+mov rax, __?float32?__(0.0)
+push 0
+push rax
+; Generate arg end
+; Generate arg start xmm4
 sub rsp, 16
 lea rsi, [rbp-988]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1384]
 lea rdi, [rsp]
@@ -6677,74 +6901,60 @@ lea rdi, [rsp+64]
 mov rcx, 16
 rep movsb
 add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-444]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
-sub rsp, 16
-lea rsi, [rbp-704]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1360]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-pop rax
-add rsp, 8
-pop rbx
-pop rcx
-cmp rax, rcx
-jge _OutOfBounds@@@227
-cmp rax, 0
-jge _InBounds@@@228
-_OutOfBounds@@@227:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
-call error@@
-_InBounds@@@228:
-mov rcx, 20
-mul rcx
-lea rsi, [rax+rbx]
-sub rsp, 32
-lea rdi, [rsp]
-mov rcx, 20
-rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
 call DrawTexturePro
-add rsp, 160
+add rsp, 32
 add rsp, 0
 sub rsp, 0
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
+sub rsp, 32
+lea rsi, [rbp-1404]
+lea rdi, [rsp]
+mov rcx, 20
+rep movsb
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
+rep movsb
+add rsp, 32
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
+; Generate arg end
+; Generate arg start xmm5
 mov rax, __?float32?__(0.0)
 push 0
 push rax
+; Generate arg end
+; Generate arg start xmm4
 sub rsp, 16
 lea rsi, [rbp-988]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1384]
 lea rdi, [rsp]
@@ -6831,48 +7041,86 @@ lea rdi, [rsp+64]
 mov rcx, 16
 rep movsb
 add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-720]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
+call DrawTexturePro
+add rsp, 32
+add rsp, 0
+sub rsp, 0
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
+sub rsp, 16
+lea rsi, [rbp-704]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+sub rsp, 16
+lea rsi, [rbp-1344]
+lea rdi, [rsp]
+mov rcx, 8
+rep movsb
+pop rax
+add rsp, 8
+pop rbx
+pop rcx
+cmp rax, rcx
+jge _OutOfBounds@@@233
+cmp rax, 0
+jge _InBounds@@@234
+_OutOfBounds@@@233:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
+call error@@
+_InBounds@@@234:
+mov rcx, 20
+mul rcx
+lea rsi, [rax+rbx]
 sub rsp, 32
-lea rsi, [rbp-1404]
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
 rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
-call DrawTexturePro
-add rsp, 160
-add rsp, 0
-sub rsp, 0
+add rsp, 32
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
+; Generate arg end
+; Generate arg start xmm5
 mov rax, __?float32?__(0.0)
 push 0
 push rax
+; Generate arg end
+; Generate arg start xmm4
 sub rsp, 16
 lea rsi, [rbp-988]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1384]
 lea rdi, [rsp]
@@ -6971,18 +7219,37 @@ lea rdi, [rsp+64]
 mov rcx, 16
 rep movsb
 add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-444]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
+call DrawTexturePro
+add rsp, 32
+add rsp, 0
+sub rsp, 0
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 16
 lea rsi, [rbp-704]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
 sub rsp, 16
-lea rsi, [rbp-1344]
+lea rsi, [rbp-1336]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
@@ -6991,15 +7258,15 @@ add rsp, 8
 pop rbx
 pop rcx
 cmp rax, rcx
-jge _OutOfBounds@@@238
+jge _OutOfBounds@@@240
 cmp rax, 0
-jge _InBounds@@@239
-_OutOfBounds@@@238:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+jge _InBounds@@@241
+_OutOfBounds@@@240:
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
-_InBounds@@@239:
+_InBounds@@@241:
 mov rcx, 20
 mul rcx
 lea rsi, [rax+rbx]
@@ -7007,38 +7274,31 @@ sub rsp, 32
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
 rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
-call DrawTexturePro
-add rsp, 160
-add rsp, 0
-sub rsp, 0
+add rsp, 32
+; Generate arg start rdi
 sub rsp, 16
 lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
+; Generate arg end
+; Generate arg start xmm5
 mov rax, __?float32?__(0.0)
 push 0
 push rax
+; Generate arg end
+; Generate arg start xmm4
 sub rsp, 16
 lea rsi, [rbp-988]
 lea rdi, [rsp]
 mov rcx, 8
 rep movsb
+; Generate arg end
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1384]
 lea rdi, [rsp]
@@ -7137,59 +7397,25 @@ lea rdi, [rsp+64]
 mov rcx, 16
 rep movsb
 add rsp, 64
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-444]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
-sub rsp, 16
-lea rsi, [rbp-704]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1336]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-pop rax
-add rsp, 8
-pop rbx
-pop rcx
-cmp rax, rcx
-jge _OutOfBounds@@@245
-cmp rax, 0
-jge _InBounds@@@246
-_OutOfBounds@@@245:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
-call error@@
-_InBounds@@@246:
-mov rcx, 20
-mul rcx
-lea rsi, [rax+rbx]
-sub rsp, 32
-lea rdi, [rsp]
-mov rcx, 20
-rep movsb
-lea rsi, [rsp+96]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-lea rsi, [rsp+88]
-push 0
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
 call DrawTexturePro
-add rsp, 160
+add rsp, 32
 add rsp, 0
 jmp _endif@@@44
 _else@@@45:
@@ -7407,22 +7633,31 @@ mov rcx, 16
 rep movsb
 add rsp, 16
 sub rsp, 16
+; Call CheckCollisionRecs
+sub rsp, 0
+; Generate arg start xmm2, xmm3
 sub rsp, 16
 lea rsi, [rbp-1076]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
+; Generate arg end
+; Generate arg start xmm0, xmm1
 sub rsp, 16
 lea rsi, [rbp-1440]
 lea rdi, [rsp]
 mov rcx, 16
 rep movsb
-lea rdx, [rsp+16]
-lea rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 32
+mov rax, 0
 call CheckCollisionRecs
-add rsp, 64
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 lea rsi, [rsp]
 lea rdi, [rbp-1465]
 mov rcx, 1
@@ -8139,9 +8374,9 @@ jge _OutOfBounds@@@289
 cmp rax, 0
 jge _InBounds@@@290
 _OutOfBounds@@@289:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@290:
 mov rcx, 20
@@ -8488,51 +8723,63 @@ jmp _endif@@@293
 _else@@@294:
 _endif@@@293:
 sub rsp, 0
-sub rsp, 16
-lea rsi, [rbp-980]
-lea rdi, [rsp]
-mov rcx, 4
-rep movsb
-mov rax, __?float32?__(0.0)
-push 0
-push rax
-sub rsp, 16
-lea rsi, [rbp-988]
-lea rdi, [rsp]
-mov rcx, 8
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-1440]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
-sub rsp, 16
-lea rsi, [rbp-192]
-lea rdi, [rsp]
-mov rcx, 16
-rep movsb
+; Call DrawTexturePro
+sub rsp, 8
+sub rsp, 24
 sub rsp, 32
 lea rsi, [rbp-1488]
 lea rdi, [rsp]
 mov rcx, 20
 rep movsb
-lea rsi, [rsp+96]
-push 0
+lea rdi, [rsp + 32]
+lea rsi, [rsp]
+mov rcx, 20
+rep movsb
+add rsp, 32
+; Generate arg start rdi
+sub rsp, 16
+lea rsi, [rbp-980]
 lea rdi, [rsp]
 mov rcx, 4
 rep movsb
-lea rsi, [rsp+88]
+; Generate arg end
+; Generate arg start xmm5
+mov rax, __?float32?__(0.0)
 push 0
+push rax
+; Generate arg end
+; Generate arg start xmm4
+sub rsp, 16
+lea rsi, [rbp-988]
 lea rdi, [rsp]
-mov rcx, 4
+mov rcx, 8
 rep movsb
-mov r9, [rsp+80]
-lea r8, [rsp+64]
-lea rdx, [rsp+48]
-lea rcx, [rsp+16]
-sub rsp, 32
+; Generate arg end
+; Generate arg start xmm2, xmm3
+sub rsp, 16
+lea rsi, [rbp-1440]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+; Generate arg start xmm0, xmm1
+sub rsp, 16
+lea rsi, [rbp-192]
+lea rdi, [rsp]
+mov rcx, 16
+rep movsb
+; Generate arg end
+mov rdi, [rsp + 64]
+movq xmm5, [rsp + 48]
+movq xmm4, [rsp + 32]
+movq xmm2, [rsp + 16]
+movq xmm3, [rsp + 24]
+movq xmm0, [rsp + 0]
+movq xmm1, [rsp + 8]
+add rsp, 80
+mov rax, 0
 call DrawTexturePro
-add rsp, 160
+add rsp, 32
 add rsp, 0
 call gcclear@@
 jmp _forstep@@@253
@@ -8543,26 +8790,37 @@ jmp _forstep@@@249
 _forend@@@248:
 add rsp, 16
 sub rsp, 0
-sub rsp, 32
+; Call EndDrawing
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call EndDrawing
-add rsp, 32
+add rsp, 0
 add rsp, 0
 call gcclear@@
 jmp _whiledo@@@35
 _whileend@@@34:
 sub rsp, 0
-sub rsp, 32
+; Call CloseWindow
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call CloseWindow
-add rsp, 32
+add rsp, 0
 add rsp, 0
 sub rsp, 0
+; Call exit
+sub rsp, 0
+; Generate arg start rdi
 mov rax, 0
 push 0
 push rax
-mov rcx, [rsp+0]
-sub rsp, 32
+; Generate arg end
+mov rdi, [rsp + 0]
+add rsp, 16
+mov rax, 0
 call exit
-add rsp, 48
+add rsp, 0
 add rsp, 0
 call gcclear@@
 mov rsp, rbp
@@ -8724,9 +8982,9 @@ jge _OutOfBounds@@@317
 cmp rax, 0
 jge _InBounds@@@318
 _OutOfBounds@@@317:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@318:
 mov rcx, 16
@@ -8788,9 +9046,9 @@ jge _OutOfBounds@@@321
 cmp rax, 0
 jge _InBounds@@@322
 _OutOfBounds@@@321:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@322:
 mov rcx, 16
@@ -8814,9 +9072,9 @@ jge _OutOfBounds@@@323
 cmp rax, 0
 jge _InBounds@@@324
 _OutOfBounds@@@323:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@324:
 mov rcx, 16
@@ -8957,9 +9215,9 @@ jge _OutOfBounds@@@334
 cmp rax, 0
 jge _InBounds@@@335
 _OutOfBounds@@@334:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@335:
 mov rcx, 16
@@ -9160,9 +9418,9 @@ jge _OutOfBounds@@@344
 cmp rax, 0
 jge _InBounds@@@345
 _OutOfBounds@@@344:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@345:
 mov rcx, 16
@@ -9224,9 +9482,9 @@ jge _OutOfBounds@@@348
 cmp rax, 0
 jge _InBounds@@@349
 _OutOfBounds@@@348:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@349:
 mov rcx, 16
@@ -9250,9 +9508,9 @@ jge _OutOfBounds@@@350
 cmp rax, 0
 jge _InBounds@@@351
 _OutOfBounds@@@350:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@351:
 mov rcx, 16
@@ -9320,9 +9578,9 @@ jge _OutOfBounds@@@355
 cmp rax, 0
 jge _InBounds@@@356
 _OutOfBounds@@@355:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@356:
 mov rcx, 16
@@ -9346,9 +9604,9 @@ jge _OutOfBounds@@@357
 cmp rax, 0
 jge _InBounds@@@358
 _OutOfBounds@@@357:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@358:
 mov rcx, 16
@@ -9504,9 +9762,9 @@ jge _OutOfBounds@@@369
 cmp rax, 0
 jge _InBounds@@@370
 _OutOfBounds@@@369:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@370:
 mov rcx, 16
@@ -9568,9 +9826,9 @@ jge _OutOfBounds@@@373
 cmp rax, 0
 jge _InBounds@@@374
 _OutOfBounds@@@373:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@374:
 mov rcx, 16
@@ -9594,9 +9852,9 @@ jge _OutOfBounds@@@375
 cmp rax, 0
 jge _InBounds@@@376
 _OutOfBounds@@@375:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@376:
 mov rcx, 16
@@ -9738,10 +9996,13 @@ cmp rax, 1
 jne _whileend@@@381
 call gcframe@@
 sub rsp, 16
-sub rsp, 32
+; Call rand
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call rand
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 sub rsp, 16
 lea rsi, [rbp+16]
 lea rdi, [rsp]
@@ -9776,10 +10037,13 @@ mov rcx, 8
 rep movsb
 add rsp, 16
 sub rsp, 16
-sub rsp, 32
+; Call rand
+sub rsp, 0
+add rsp, 0
+mov rax, 0
 call rand
-add rsp, 32
-mov [rsp], rax
+add rsp, 0
+mov [rsp + 0], rax
 sub rsp, 16
 lea rsi, [rbp+16]
 lea rdi, [rsp]
@@ -9797,9 +10061,9 @@ jge _OutOfBounds@@@386
 cmp rax, 0
 jge _InBounds@@@387
 _OutOfBounds@@@386:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@387:
 mov rcx, 16
@@ -9856,9 +10120,9 @@ jge _OutOfBounds@@@391
 cmp rax, 0
 jge _InBounds@@@392
 _OutOfBounds@@@391:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@392:
 mov rcx, 16
@@ -9882,9 +10146,9 @@ jge _OutOfBounds@@@393
 cmp rax, 0
 jge _InBounds@@@394
 _OutOfBounds@@@393:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@394:
 mov rcx, 16
@@ -10130,9 +10394,9 @@ jge _OutOfBounds@@@409
 cmp rax, 0
 jge _InBounds@@@410
 _OutOfBounds@@@409:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@410:
 mov rcx, 16
@@ -10444,9 +10708,9 @@ jge _OutOfBounds@@@432
 cmp rax, 0
 jge _InBounds@@@433
 _OutOfBounds@@@432:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@433:
 mov rcx, 16
@@ -10512,9 +10776,9 @@ jge _OutOfBounds@@@437
 cmp rax, 0
 jge _InBounds@@@438
 _OutOfBounds@@@437:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@438:
 mov rcx, 16
@@ -10538,9 +10802,9 @@ jge _OutOfBounds@@@439
 cmp rax, 0
 jge _InBounds@@@440
 _OutOfBounds@@@439:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@440:
 mov rcx, 16
@@ -10673,9 +10937,9 @@ jge _OutOfBounds@@@442
 cmp rax, 0
 jge _InBounds@@@443
 _OutOfBounds@@@442:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@443:
 mov rcx, 16
@@ -10699,9 +10963,9 @@ jge _OutOfBounds@@@444
 cmp rax, 0
 jge _InBounds@@@445
 _OutOfBounds@@@444:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@445:
 mov rcx, 16
@@ -11055,9 +11319,9 @@ jge _OutOfBounds@@@473
 cmp rax, 0
 jge _InBounds@@@474
 _OutOfBounds@@@473:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@474:
 mov rcx, 16
@@ -11133,9 +11397,9 @@ jge _OutOfBounds@@@478
 cmp rax, 0
 jge _InBounds@@@479
 _OutOfBounds@@@478:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@479:
 mov rcx, 16
@@ -11169,9 +11433,9 @@ jge _OutOfBounds@@@481
 cmp rax, 0
 jge _InBounds@@@482
 _OutOfBounds@@@481:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@482:
 mov rcx, 16
@@ -11544,9 +11808,9 @@ jge _OutOfBounds@@@511
 cmp rax, 0
 jge _InBounds@@@512
 _OutOfBounds@@@511:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@512:
 mov rcx, 16
@@ -11622,9 +11886,9 @@ jge _OutOfBounds@@@516
 cmp rax, 0
 jge _InBounds@@@517
 _OutOfBounds@@@516:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@517:
 mov rcx, 16
@@ -11658,9 +11922,9 @@ jge _OutOfBounds@@@519
 cmp rax, 0
 jge _InBounds@@@520
 _OutOfBounds@@@519:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@520:
 mov rcx, 16
@@ -11923,9 +12187,9 @@ jge _OutOfBounds@@@534
 cmp rax, 0
 jge _InBounds@@@535
 _OutOfBounds@@@534:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@535:
 mov rcx, 16
@@ -11999,9 +12263,9 @@ jge _OutOfBounds@@@539
 cmp rax, 0
 jge _InBounds@@@540
 _OutOfBounds@@@539:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@540:
 mov rcx, 16
@@ -12025,9 +12289,9 @@ jge _OutOfBounds@@@541
 cmp rax, 0
 jge _InBounds@@@542
 _OutOfBounds@@@541:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@542:
 mov rcx, 16
@@ -12131,9 +12395,9 @@ jge _OutOfBounds@@@546
 cmp rax, 0
 jge _InBounds@@@547
 _OutOfBounds@@@546:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@547:
 mov rcx, 16
@@ -12157,9 +12421,9 @@ jge _OutOfBounds@@@548
 cmp rax, 0
 jge _InBounds@@@549
 _OutOfBounds@@@548:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@549:
 mov rcx, 16
@@ -12219,9 +12483,9 @@ jge _OutOfBounds@@@552
 cmp rax, 0
 jge _InBounds@@@553
 _OutOfBounds@@@552:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@553:
 mov rcx, 16
@@ -12245,9 +12509,9 @@ jge _OutOfBounds@@@554
 cmp rax, 0
 jge _InBounds@@@555
 _OutOfBounds@@@554:
-mov r8, rcx
-mov rdx, rax
-mov rcx, error@@OutOfBounds
+mov rdx, rcx
+mov rsi, rax
+mov rdi, error@@OutOfBounds
 call error@@
 _InBounds@@@555:
 mov rcx, 16

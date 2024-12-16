@@ -1,2 +1,4 @@
 *.exe
 *.o
+lib
+main-linux
