@@ -659,7 +659,26 @@ fn tryChord(cell[][] grid, int x, int y) bool {
             if y + j < 0 or y + j >= grid[0].len continue
             if grid[x+i][y+j].flag continue
 
+            if grid[x+i][y+j].mine {
+                # Opens that single cell with mine
+                recursivelyOpen(grid, x+i, y+j, true)
+                mut safe = false
+            }
+        }
+    }
+
+    if !safe ret safe
+
+    for i from -1 until 2 {
+        for j from -1 until 2 {
+            if i == 0 and j == 0 continue
+            if x + i < 0 or x + i >= grid.len continue
+            if y + j < 0 or y + j >= grid[0].len continue
+            if grid[x+i][y+j].flag continue
+
             let bool result = recursivelyOpen(grid, x+i, y+j, true)
+
+            # Technically useless, but gonna leave it in
             if !result mut safe = false
         }
     }
