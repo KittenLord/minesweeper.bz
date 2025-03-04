@@ -1,6 +1,5 @@
 link "raylib"
-link "gdi32"
-link "winmm"
+link "m"
 
 type color {
     byte r,
@@ -176,7 +175,6 @@ fn main() {
     SetTargetFPS(60)
 
     let color bg = color!{ 215, 215, 215, 255 }
-
 
 # TEXTURES
         let texture texClosed = loadTexture(img_closed)
@@ -498,7 +496,7 @@ if acceptInput {
                         if !c.closed 
                             mut result = tryChord(grid, i, j)
                         else if !c.flag 
-                            mut result = recursivelyOpen(grid, i, j)
+                            mut result = recursivelyOpen(grid, i, j, true)
 
                         mut gameLost = !result
                         mut gameWon = !gameLost and checkWin(grid)
@@ -599,6 +597,8 @@ fn populateGrid(cell[][] grid, int xo, int yo, int targetMineCount) {
             let int ry = rand() %% grid[0].len
 
             if grid[rx][ry].mine continue
+
+            # More empty spaces near the starting point
             let int dx = mabs(xo - rx)
             let int dy = mabs(yo - ry)
             if dx + dy < 3 continue
@@ -659,7 +659,7 @@ fn tryChord(cell[][] grid, int x, int y) bool {
             if y + j < 0 or y + j >= grid[0].len continue
             if grid[x+i][y+j].flag continue
 
-            let bool result = recursivelyOpen(grid, x+i, y+j)
+            let bool result = recursivelyOpen(grid, x+i, y+j, true)
             if !result mut safe = false
         }
     }
@@ -668,10 +668,13 @@ fn tryChord(cell[][] grid, int x, int y) bool {
 }
 
 # False if mine
-fn recursivelyOpen(cell[][] grid, int x, int y) bool {
+fn recursivelyOpen(cell[][] grid, int x, int y, bool initial) bool {
     if x < 0 or x >= grid.len ret true
     if y < 0 or y >= grid[0].len ret true
+    if grid[x][y].flag ret true
 
+    # A chain shouldn't open a mine lol
+    if !initial and grid[x][y].mine ret true
     if !grid[x][y].closed ret true
 
     mut grid[x][y].closed = false
@@ -681,7 +684,7 @@ fn recursivelyOpen(cell[][] grid, int x, int y) bool {
 
     for i from -1 until 2 {
         for j from -1 until 2 {
-            recursivelyOpen(grid, x+i, y+j)
+            recursivelyOpen(grid, x+i, y+j, false)
         }
     }
 
